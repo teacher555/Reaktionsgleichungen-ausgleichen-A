@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chemie-Master: Speed-Challenge</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --success: #27ae60;
+            --error: #e74c3c;
+            --bg: #f4f7f6;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 800px;
+            text-align: center;
+        }
+
+        /* Screens */
+        .screen { display: none; }
+        .active { display: block; }
+
+        /* UI Elements */
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #eee;
+            border-radius: 4px;
+            margin: 20px 0;
+            overflow: hidden;
+        }
+
+        #progress-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.3s;
+        }
+
+        .timer-display {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 10px;
+        }
+
+        .equation-box {
+            background: #f8f9fa;
+            padding: 25px;
+            border: 2px solid #e0e0e0;
+            border-radius: 15px;
+            margin: 20px 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-size: 1.4rem;
+            flex-wrap: wrap;
+        }
+
+        select {
+            font-size: 1.2rem;
+            padding: 5px;
+            border-radius: 8px;
+            border: 2px solid var(--accent);
+            cursor: pointer;
+        }
+
+        .balance-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        .balance-table th { background: var(--primary); color: white; padding: 12px; }
+        .balance-table td { padding: 12px; border-bottom: 1px solid #eee; }
+
+        .hint-box {
+            padding: 15px;
+            border-radius: 10px;
+            background: #fff9c4;
+            min-height: 20px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+
+        .btn:active { transform: scale(0.98); }
+        .btn-success { background: var(--success); }
+
+        /* Result Table */
+        .stats-table {
+            width: 100%;
+            margin-top: 20px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .stats-table tr:nth-child(even) { background: #f9f9f9; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    
+    <div id="start-screen" class="screen active">
+        <h1>🧪 Chemie-Master Challenge</h1>
+        <p>Gleiche 10 Reaktionsgleichungen so schnell wie möglich aus!</p>
+        <button class="btn" onclick="startGame()">Challenge starten!</button>
+    </div>
+
+    <div id="game-screen" class="screen">
+        <div class="timer-display">Zeit: <span id="live-timer">0.0</span>s</div>
+        <div class="progress-bar"><div id="progress-fill"></div></div>
+        <h2 id="level-title">Level 1</h2>
+        
+        <div id="equation-area" class="equation-box"></div>
+
+        <table class="balance-table">
+            <thead>
+                <tr>
+                    <th>Atom</th>
+                    <th>Links</th>
+                    <th>Rechts</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+
+        <div class="hint-box" id="hint-text">Wähle die richtigen Koeffizienten!</div>
+        <button class="btn btn-success" id="next-btn" style="display:none" onclick="nextLevel()">Nächstes Level ➔</button>
+    </div>
+
+    <div id="result-screen" class="screen">
+        <h1>📊 Deine Auswertung</h1>
+        <div id="overall-feedback" style="font-size: 1.3rem; margin-bottom: 20px;"></div>
+        
+        <table class="balance-table stats-table">
+            <thead>
+                <tr>
+                    <th>Level</th>
+                    <th>Gleichung</th>
+                    <th>Zeit</th>
+                </tr>
+            </thead>
+            <tbody id="results-body"></tbody>
+        </table>
+        
+        <h2 id="total-time-display"></h2>
+        <button class="btn" onclick="location.reload()">Nochmal spielen</button>
+    </div>
+
+</div>
+
+<script>
+    const levels = [
+        { e: ["H2", "O2"], p: ["H2O"], sol: [2,1,2], atoms: ["H", "O"], name: "Knallgasreaktion" },
+        { e: ["CH4", "O2"], p: ["CO2", "H2O"], sol: [1,2,1,2], atoms: ["C", "H", "O"], name: "Methan-Verbrennung" },
+        { e: ["C3H8", "O2"], p: ["CO2", "H2O"], sol: [1,5,3,4], atoms: ["C", "H", "O"], name: "Propan-Verbrennung" },
+        { e: ["Mg", "O2"], p: ["MgO"], sol: [2,1,2], atoms: ["Mg", "O"], name: "Magnesiumbrand" },
+        { e: ["N2", "H2"], p: ["NH3"], sol: [1,3,2], atoms: ["N", "H"], name: "Haber-Bosch-Verfahren" },
+        { e: ["Fe", "O2"], p: ["Fe2O3"], sol: [4,3,2], atoms: ["Fe", "O"], name: "Eisen-Oxidation" },
+        { e: ["Na", "Cl2"], p: ["NaCl"], sol: [2,1,2], atoms: ["Na", "Cl"], name: "Kochsalz-Synthese" },
+        { e: ["Al", "O2"], p: ["Al2O3"], sol: [4,3,2], atoms: ["Al", "O"], name: "Aluminium-Oxidation" },
+        { e: ["P4", "O2"], p: ["P4O10"], sol: [1,5,1], atoms: ["P", "O"], name: "Phosphorpentoxid" },
+        { e: ["C2H6", "O2"], p: ["CO2", "H2O"], sol: [2,7,4,6], atoms: ["C", "H", "O"], name: "Ethan-Verbrennung" }
+    ];
+
+    let currentLvl = 0;
+    let startTime, levelStartTime;
+    let levelTimes = [];
+    let timerInterval;
+
+    function startGame() {
+        showScreen('game-screen');
+        startTime = Date.now();
+        levelStartTime = startTime;
+        initLevel();
+        startTimer();
+    }
+
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            const elapsed = (Date.now() - levelStartTime) / 1000;
+            document.getElementById('live-timer').innerText = elapsed.toFixed(1);
+        }, 100);
+    }
+
+    function showScreen(id) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+    }
+
+    function initLevel() {
+        levelStartTime = Date.now();
+        const lvl = levels[currentLvl];
+        const area = document.getElementById('equation-area');
+        area.innerHTML = '';
+        
+        lvl.e.forEach((f, i) => {
+            area.innerHTML += `<select id="e_${i}" onchange="check()">${genOptions()}</select> <span>${formatMol(f)}</span>`;
+            if (i < lvl.e.length - 1) area.innerHTML += '<span>+</span>';
+        });
+        area.innerHTML += '<span>➔</span>';
+        lvl.p.forEach((f, i) => {
+            area.innerHTML += `<select id="p_${i}" onchange="check()">${genOptions()}</select> <span>${formatMol(f)}</span>`;
+            if (i < lvl.p.length - 1) area.innerHTML += '<span>+</span>';
+        });
+
+        document.getElementById('level-title').innerText = `Level ${currentLvl + 1}: ${lvl.name}`;
+        document.getElementById('progress-fill').style.width = `${(currentLvl / levels.length) * 100}%`;
+        document.getElementById('next-btn').style.display = 'none';
+        check();
+    }
+
+    function genOptions() {
+        let options = '<option value="0">?</option>';
+        for(let i=1; i<=10; i++) options += `<option value="${i}">${i}</option>`;
+        return options;
+    }
+
+    function formatMol(f) { return f.replace(/(\d+)/g, '<sub>$1</sub>'); }
+
+    function parseFormula(formula, coeff) {
+        let counts = {};
+        let parts = formula.match(/([A-Z][a-z]?)(\d*)/g);
+        parts.forEach(p => {
+            let m = p.match(/([A-Z][a-z]?)(\d*)/);
+            let atom = m[1];
+            let num = m[2] === "" ? 1 : parseInt(m[2]);
+            counts[atom] = (counts[atom] || 0) + (num * coeff);
+        });
+        return counts;
+    }
+
+    function check() {
+        const lvl = levels[currentLvl];
+        let leftAtoms = {}, rightAtoms = {};
+        let allSelected = true;
+
+        const getVal = (id) => {
+            const v = parseInt(document.getElementById(id).value);
+            if(v === 0) allSelected = false;
+            return v;
+        };
+
+        lvl.e.forEach((f, i) => {
+            let res = parseFormula(f, getVal(`e_${i}`));
+            for (let a in res) leftAtoms[a] = (leftAtoms[a] || 0) + res[a];
+        });
+
+        lvl.p.forEach((f, i) => {
+            let res = parseFormula(f, getVal(`p_${i}`));
+            for (let a in res) rightAtoms[a] = (rightAtoms[a] || 0) + res[a];
+        });
+
+        const tbody = document.getElementById('table-body');
+        tbody.innerHTML = '';
+        let win = allSelected;
+
+        lvl.atoms.forEach(a => {
+            let l = leftAtoms[a] || 0;
+            let r = rightAtoms[a] || 0;
+            let ok = l === r && l > 0;
+            if(!ok) win = false;
+            tbody.innerHTML += `<tr><td>${a}</td><td>${l}</td><td>${r}</td><td style="color:${ok?'green':'red'}">${ok?'✔':'✘'}</td></tr>`;
+        });
+
+        if(win) {
+            document.getElementById('hint-text').innerHTML = "<b style='color:green'>Richtig! Zeit gestoppt.</b>";
+            document.getElementById('next-btn').style.display = 'inline-block';
+        } else {
+            document.getElementById('hint-text').innerText = "Gleiche die Atome auf beiden Seiten aus.";
+        }
+    }
+
+    function nextLevel() {
+        const timeTaken = (Date.now() - levelStartTime) / 1000;
+        levelTimes.push(timeTaken);
+
+        currentLvl++;
+        if (currentLvl < levels.length) {
+            initLevel();
+        } else {
+            clearInterval(timerInterval);
+            showResults();
+        }
+    }
+
+    function showResults() {
+        showScreen('result-screen');
+        const resultsBody = document.getElementById('results-body');
+        let totalTime = 0;
+        resultsBody.innerHTML = '';
+
+        levelTimes.forEach((t, i) => {
+            totalTime += t;
+            resultsBody.innerHTML += `<tr>
+                <td>${i+1}</td>
+                <td>${levels[i].name}</td>
+                <td>${t.toFixed(1)}s</td>
+            </tr>`;
+        });
+
+        document.getElementById('total-time-display').innerText = `Gesamtzeit: ${totalTime.toFixed(1)} Sekunden`;
+        
+        // Feedback Logik
+        const avg = totalTime / 10;
+        let feedback = "";
+        if(avg < 5) feedback = "🚀 Phänomenal! Du bist ein Chemie-Genie!";
+        else if(avg < 15) feedback = "⚖️ Sehr gut! Du hast ein gutes Gespür für Stöchiometrie.";
+        else if(avg < 30) feedback = "🧪 Ordentlich! Mit etwas Übung wirst du noch schneller.";
+        else feedback = "📚 Kopf hoch! Chemie braucht Zeit und Übung.";
+
+        document.getElementById('overall-feedback').innerText = feedback;
+    }
+</script>
+
+</body>
+</html>
